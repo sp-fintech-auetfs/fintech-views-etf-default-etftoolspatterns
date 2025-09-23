@@ -1,0 +1,34 @@
+{% if pattern['id'] is defined %}
+    {% set patternId = pattern['id'] %}
+    {% set title = 'Pattern (' ~ pattern['name'] ~ ')' %}
+{% else %}
+    {% set patternId = '' %}
+    {% set title = 'New Pattern' %}
+{% endif %}
+{{adminltetags.useTag('content',
+    [
+        'component'                     : component,
+        'componentName'                 : componentName,
+        'componentId'                   : componentId,
+        'parentComponentId'             : parent,
+        'sectionId'                     : 'main',
+        'contentType'                   : 'sectionWithForm',
+        'cardHeader'                    : true,
+        'cardFooter'                    : true,
+        'cardType'                      : 'primary',
+        'cardIcon'                      : 'arrow-trend-up',
+        'cardTitle'                     : title,
+        'cardAdditionalClass'           : 'rounded-0',
+        'cardBodyInclude'               : 'patterns/form',
+        'formButtons'                   :
+        [
+            'updateButtonId'                : patternId,
+            'addActionUrl'                  : 'etf/tools/patterns/add',
+            'addSuccessRedirectUrl'         : 'etf/tools/patterns',
+            'updateActionUrl'               : 'etf/tools/patterns/update',
+            'updateSuccessRedirectUrl'      : 'etf/tools/patterns',
+            'cancelActionUrl'               : 'etf/tools/patterns',
+            'closeActionUrl'                : 'etf/tools/patterns'
+        ]
+    ]
+)}}

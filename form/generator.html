@@ -1,0 +1,67 @@
+<div class="row">
+    <div class="col">
+        {{adminltetags.useTag('fields',
+            [
+                'component'                         : component,
+                'componentName'                     : componentName,
+                'componentId'                       : componentId,
+                'sectionId'                         : sectionId,
+                'fieldId'                           : 'pattern_source',
+                'fieldLabel'                        : 'Pattern Source',
+                'fieldType'                         : 'select2',
+                'fieldHelp'                         : false,
+                'fieldHelpTooltipContent'           : 'Select pattern source.',
+                'fieldRequired'                     : true,
+                'fieldBazScan'                      : true,
+                'fieldBazPostOnCreate'              : false,
+                'fieldBazPostOnUpdate'              : false,
+                'fieldDataSelect2Options'           :
+                    [
+                        'current_scheme'                    : [
+                            'id'                            : 'current_scheme',
+                            'name'                          : 'EXTRACT FROM CURRENT SCHEME'
+                        ],
+                        'fixed_linear'                      : [
+                            'id'                            : 'fixed_linear',
+                            'name'                          : 'FIXED (LINEAR)'
+                        ],
+                        'fixed_random'                      : [
+                            'id'                            : 'fixed_random',
+                            'name'                          : 'FIXED (RANDOM)'
+                        ]
+                    ],
+                'fieldDataSelect2OptionsKey'        : 'id',
+                'fieldDataSelect2OptionsValue'      : 'name',
+                'fieldDataSelect2OptionsArray'      : true,
+                'fieldDataSelect2OptionsSelected'   : 'current_scheme'
+            ]
+        )}}
+    </div>
+</div>
+<div class="row">
+    {% include 'patterns/form/generator/currentscheme.html' %}
+    {% include 'patterns/form/generator/fixedlinear.html' %}
+    {% include 'patterns/form/generator/fixedrandom.html' %}
+</div>
+<hr>
+<div class="row">
+    <div class="col">
+        {{adminltetags.useTag('buttons',
+            [
+                'component'                      : component,
+                'componentName'                  : componentName,
+                'componentId'                    : componentId,
+                'sectionId'                      : sectionId,
+                'buttonType'                    : 'button',
+                'buttons'                       :
+                    [
+                        'generate-pattern'        : [
+                            'title'                   : 'generate pattern',
+                            'type'                    : 'success',
+                            'position'                : 'right'
+                        ]
+                    ]
+            ]
+        )}}
+    </div>
+</div>

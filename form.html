@@ -1,0 +1,903 @@
+{% if pattern['id'] is defined %}
+    {% set patternPattern = pattern['pattern'] %}
+{% else %}
+    {% set patternPattern = [] %}
+{% endif %}
+<form data-validateon="section" id="{{componentId}}-{{sectionId}}-form">
+    <fieldset id="{{componentId}}-{{sectionId}}-fieldset">
+        <div class="row">
+            <div class="col">
+                {{adminltetags.useTag('tabs',
+                    [
+                        'component'                     : component,
+                        'componentName'                 : componentName,
+                        'componentId'                   : componentId,
+                        'sectionId'                     : 'main',
+                        'tabsId'                        : 'tabs',
+                        'tabsStyle'                     : 'card-outline-tabs',
+                        'tabsData'                      :
+                            [
+                                'info'   :
+                                [
+                                    'tabTitle'          : 'Info',
+                                    'tabInclude'        : 'patterns/form/info'
+                                ],
+                                'generator'   :
+                                [
+                                    'tabTitle'          : 'Generator',
+                                    'tabInclude'        : 'patterns/form/generator'
+                                ]
+                            ]
+                    ]
+                )}}
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col">
+                {{adminltetags.useTag('fields',
+                    [
+                        'component'                      : component,
+                        'componentName'                  : componentName,
+                        'componentId'                    : componentId,
+                        'sectionId'                      : sectionId,
+                        'fieldId'                        : 'pattern',
+                        'fieldLabel'                     : 'Pattern',
+                        'fieldType'                      : 'textarea',
+                        'fieldDataMaxLength'             : 4096,
+                        'fieldHelp'                      : true,
+                        'fieldHelpTooltipContent'        : 'Generate pattern using generator tool or enter patter in form on percentages, comma separated.',
+                        'fieldRequired'                  : false,
+                        'fieldBazScan'                   : true,
+                        'fieldBazJstreeSearch'           : true,
+                        'fieldBazPostOnCreate'           : true,
+                        'fieldBazPostOnUpdate'           : true,
+                        'fieldDataInputMaxLength'        : 16384,
+                        'fieldTextareaRows'              : 4,
+                        'fieldValue'                     : implode(',', patternPattern)
+                    ]
+                )}}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                {{adminltetags.useTag('buttons',
+                    [
+                        'component'                      : component,
+                        'componentName'                  : componentName,
+                        'componentId'                    : componentId,
+                        'sectionId'                      : sectionId,
+                        'buttonType'                    : 'button',
+                        'buttons'                       :
+                            [
+                                'generate-pattern-chart'      : [
+                                    'title'                   : 'generate pattern chart',
+                                    'position'                : 'right'
+                                ]
+                            ]
+                    ]
+                )}}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                {{adminltetags.useTag('fields',
+                    [
+                        'component'                      : component,
+                        'componentName'                  : componentName,
+                        'componentId'                    : componentId,
+                        'sectionId'                      : sectionId,
+                        'fieldId'                        : 'pattern_chart',
+                        'fieldLabel'                     : 'Pattern Chart',
+                        'fieldType'                      : 'html',
+                        'fieldAdditionalClass'           : 'mb-0',
+                        'fieldHelp'                      : true,
+                        'fieldHelpTooltipContent'        : 'Visual representation of the pattern',
+                        'fieldRequired'                  : false,
+                        'fieldBazScan'                   : true,
+                        'fieldHtmlContent'               :
+                            '
+                                <div class="row" id="pattern-chart-info">
+                                    <div class="col">
+                                        Generate pattern chart to show chart
+                                    </div>
+                                </div>
+                                <div class="row" id="pattern-chart" hidden>
+                                    <div class="col">
+                                        <div id="patternChart"></div>
+                                    </div>
+                                </div>
+                                <div class="row text-center" id="pattern-loader" hidden>
+                                    <div class="col">
+                                        <i class="fa fa-cog fa-spin"></i> Loading pattern chart...
+                                    </div>
+                                </div>
+                            '
+                    ]
+                )}}
+            </div>
+        </div>
+    </fieldset>
+</form>
+{% set patternPattern = json_encode(patternPattern, 16) %}
+<script>
+/*global paginatedPNotify BazProgress BazContentFields BazHelpers BazContentLoader Pace BazCore dataCollection Swal echarts */
+var dataCollectionComponent, dataCollectionSection, dataCollectionSectionForm;
+
+if (!window['dataCollection']['{{componentId}}']) {
+    dataCollectionComponent =
+        window['dataCollection']['{{componentId}}'] = { };
+} else {
+    dataCollectionComponent =
+        window['dataCollection']['{{componentId}}'];
+}
+if (!dataCollectionComponent['{{componentId}}-{{sectionId}}']) {
+    dataCollectionSection =
+        dataCollectionComponent['{{componentId}}-{{sectionId}}'] = { };
+} else {
+    dataCollectionSection =
+        dataCollectionComponent['{{componentId}}-{{sectionId}}'];
+}
+if (!dataCollectionSection['{{componentId}}-{{sectionId}}-form']) {
+    dataCollectionSectionForm =
+        dataCollectionSection['{{componentId}}-{{sectionId}}-form'] = { };
+} else {
+    dataCollectionSectionForm =
+        dataCollectionSection['{{componentId}}-{{sectionId}}-form'];
+}
+
+if (!dataCollectionSectionForm['vars']) {
+    dataCollectionSectionForm['vars'] = { };
+}
+dataCollectionSectionForm['vars']['scheme'] = [];
+dataCollectionSectionForm['vars']['navs_chunks'] = [];
+dataCollectionSectionForm['vars']['growthChart'] = { };
+dataCollectionSectionForm['vars']['growthChartOptions'] = { };
+dataCollectionSectionForm['vars']['patternChart'] = { };
+dataCollectionSectionForm['vars']['patternChartOptions'] = { };
+dataCollectionSectionForm['vars']['actions'] = { };
+dataCollectionSectionForm['vars']['dataType'] = 'diff_percent';
+dataCollectionSectionForm['vars']['dataTypeName'] = 'PERCENTAGE';
+dataCollectionSectionForm['vars']['pattern_index'] = [];
+dataCollectionSectionForm['vars']['pattern'] = JSON.parse('{{patternPattern}}');
+
+if (!dataCollectionSectionForm['funcs']) {
+    dataCollectionSectionForm['funcs'] = { };
+}
+
+dataCollectionSection =
+    $.extend(dataCollectionSection, {
+        '{{componentId}}-{{sectionId}}-id'                          : { },
+        '{{componentId}}-{{sectionId}}-name'                        : { },
+        '{{componentId}}-{{sectionId}}-description'                 : { },
+        '{{componentId}}-{{sectionId}}-pattern_source'              : {
+            placeholder: 'SELECT PATTERN SOURCE',
+            afterInit : function() {
+                $('#{{componentId}}-{{sectionId}}-pattern_source').on('select2:select', function() {
+                    processPatternSource();
+                });
+
+                function processPatternSource() {
+                    dataCollectionSectionForm['vars']['source'] = $('#{{componentId}}-{{sectionId}}-pattern_source').select2('data')[0].id;
+
+                    $('.sources').attr('hidden', true);
+                    $('#{{componentId}}-{{sectionId}}-' + dataCollectionSectionForm['vars']['source']).attr('hidden', false);
+
+                    if (dataCollectionSectionForm['vars']['source'] !== 'current_scheme') {
+                        $('#{{componentId}}-{{sectionId}}-amc_id').val(0).trigger('change');
+                        $('#{{componentId}}-{{sectionId}}-scheme_id').val(0).trigger('change');
+                        $('#{{componentId}}-{{sectionId}}-scheme_id').attr('disabled', true);
+                    }
+
+                    $('#{{componentId}}-{{sectionId}}-number_of_days').val('');
+                    $('#{{componentId}}-{{sectionId}}-total_percent').val('');
+                }
+
+                processPatternSource();
+            }
+        },
+        '{{componentId}}-{{sectionId}}-amc_id'                      : {
+            placeholder: 'SELECT AMC',
+            afterInit: function() {
+                $('#{{componentId}}-{{sectionId}}-amc_id').on('select2:select', function(e) {
+                    $('#{{componentId}}-{{sectionId}}-scheme_id').empty().trigger('change');
+                    $('#{{componentId}}-{{sectionId}}-scheme_id').attr('disabled', false);
+                });
+            }
+        },
+        '{{componentId}}-{{sectionId}}-scheme_id'                   : {
+            placeholder: 'SEARCH/SELECT SCHEME',
+            "ajax"          : {
+                url         : "{{links.url('etf/schemes/searchSchemesForAMC')}}",
+                dataType    : "json",
+                method      : "post",
+                data: function(params) {
+                    var query = { };
+                    query[$('#security-token').attr('name')] = $('#security-token').val();
+                    query['amc_id'] = $('#{{componentId}}-{{sectionId}}-amc_id').val();
+                    query['search'] = params.term;
+
+                    return query;
+                },
+                processResults: function(response) {
+                    if (response.responseData.schemes) {
+                        var schemesData = [];
+
+                        for (var scheme in response.responseData.schemes) {
+                            schemesData.push({
+                                "id"    : response.responseData.schemes[scheme]["id"],
+                                "text"  : response.responseData.schemes[scheme]["name"]
+                            });
+                        }
+
+                        return {
+                            results: schemesData
+                        }
+                    } else {
+                        return {
+                            results : []
+                        }
+                    }
+                }
+            },
+            minimumInputLength : 3,
+            afterInit: function() {
+                $('#{{componentId}}-{{sectionId}}-scheme_id').on('select2:select', function(e) {
+                    dataCollectionSectionForm['funcs']['getSchemeData'](e.params.data.id);
+                });
+            }
+        },
+        '{{componentId}}-{{sectionId}}-date_range'                  : {
+            dateFormat          : "Y-m-d",
+            altFormat           : "d-m-Y",
+            allowInput          : true,
+            static              : true,
+            mode                : 'range',
+            minDate             : "2000-01-01",
+            maxDate             : "today",
+            onChange: function(selectedDates, dateStr, instance) {
+                if (dateStr.includes('to')) {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks']('range', dateStr);
+                    dataCollectionSectionForm['vars']['rangeActive'] = true;
+                    dataCollectionSectionForm['vars']['range'] = dateStr;
+                }
+            },
+            afterInit: function() {
+                //
+            }
+        },
+        '{{componentId}}-{{sectionId}}-fixed_linear_number_of_days' : { },
+        '{{componentId}}-{{sectionId}}-fixed_random_number_of_days' : { },
+        '{{componentId}}-{{sectionId}}-fixed_linear_total_percent'  : { },
+        '{{componentId}}-{{sectionId}}-fixed_random_total_percent'  : { },
+        '{{componentId}}-{{sectionId}}-pattern'                     : {
+            afterInit: function() {
+                $('#{{componentId}}-{{sectionId}}-generate-pattern').off();
+                $('#{{componentId}}-{{sectionId}}-generate-pattern').click(function(e) {
+                    e.preventDefault();
+
+                    dataCollectionSectionForm['vars']['pattern'] = [];
+
+                    if (dataCollectionSectionForm['vars']['source'] === 'current_scheme') {
+                        if (!dataCollectionSectionForm['vars']['navs_chunks']['range']) {
+                            paginatedPNotify('error', {text : 'Please provide scheme date range!'});
+
+                            return;
+                        }
+
+                        if (Object.keys(dataCollectionSectionForm['vars']['navs_chunks']['range']).length === 0) {
+                            paginatedPNotify('error', {text : 'Scheme date range does not exist!'});
+
+                            return;
+                        }
+
+                        if (Object.keys(dataCollectionSectionForm['vars']['navs_chunks']['range']).length > 365) {
+                            paginatedPNotify('error', {text : 'Date range cannot be greater than 1 year!'});
+
+                            return;
+                        }
+
+                        for (var range in dataCollectionSectionForm['vars']['navs_chunks']['range']) {
+                            dataCollectionSectionForm['vars']['pattern'].push(dataCollectionSectionForm['vars']['navs_chunks']['range'][range]['diff_percent']);
+                        }
+
+                        $('#{{componentId}}-{{sectionId}}-pattern')
+                            .val(
+                                $('#{{componentId}}-{{sectionId}}-pattern').val() + ',' + dataCollectionSectionForm['vars']['pattern'].toString()
+                            );
+                    } else if (dataCollectionSectionForm['vars']['source'] === 'fixed_linear' ||
+                               dataCollectionSectionForm['vars']['source'] === 'fixed_random'
+                    ) {
+                        if ($('#{{componentId}}-{{sectionId}}-pattern').val() !== '') {
+                            dataCollectionSectionForm['vars']['pattern'] = [];
+                            dataCollectionSectionForm['vars']['pattern_index'] = [];
+
+                            var patterns = $('#{{componentId}}-{{sectionId}}-pattern').val().split(',');
+
+                            $.each(patterns, function(index, pattern) {
+                                dataCollectionSectionForm['vars']['pattern_index'].push(index);
+                                dataCollectionSectionForm['vars']['pattern'].push(pattern.trim());
+                            });
+
+                            dataCollectionSectionForm['funcs']['generatePattern']();
+                        } else {
+                            dataCollectionSectionForm['funcs']['generatePattern']();
+                        }
+                    }
+                });
+            }
+        },
+        '{{componentId}}-{{sectionId}}-pattern_chart'               : {
+            afterInit: function() {
+                $('#{{componentId}}-{{sectionId}}-generate-pattern-chart').off();
+                $('#{{componentId}}-{{sectionId}}-generate-pattern-chart').click(function(e) {
+                    e.preventDefault();
+
+
+                    if ($('#{{componentId}}-{{sectionId}}-pattern').val() === '') {
+                        paginatedPNotify('error', {text : 'Please generate patter using the patter generator or enter patter separated by comma'});
+
+                        return;
+                    }
+
+                    dataCollectionSectionForm['vars']['pattern'] = [];
+                    dataCollectionSectionForm['vars']['pattern_index'] = [];
+
+                    var patterns = $('#{{componentId}}-{{sectionId}}-pattern').val().split(',');
+
+                    $.each(patterns, function(index, pattern) {
+                        dataCollectionSectionForm['vars']['pattern_index'].push(index);
+                        dataCollectionSectionForm['vars']['pattern'].push(pattern.trim());
+                    });
+
+                    dataCollectionSectionForm['funcs']['initPatternChart']();
+                });
+            }
+        },
+        '{{componentId}}-{{sectionId}}-form'                        : {
+            rules: {
+                '{{componentId}}-{{sectionId}}-name'                : 'required',
+                '{{componentId}}-{{sectionId}}-pattern'             : 'required',
+            },
+            messages: {
+                '{{componentId}}-{{sectionId}}-name'                : 'Please enter name',
+                '{{componentId}}-{{sectionId}}-pattern'             : 'Please enter pattern',
+            }
+        }
+    });
+
+dataCollectionSectionForm['funcs']['getSchemeData'] = function(id) {
+    var postData = { };
+    postData[$('#security-token').attr('name')] = $('#security-token').val();
+    postData['scheme_id'] = id;
+    postData['navs_chunks'] = true;
+
+    $.post('{{links.url("etf/schemes/getProcessedSchemeData")}}', postData, function(response) {
+        if (response.tokenKey && response.token) {
+            $("#security-token").attr("name", response.tokenKey);
+            $("#security-token").val(response.token);
+        }
+
+        if (response.responseCode === 0) {
+            if (response.responseData.scheme && response.responseData.navs_chunks) {
+                dataCollectionSectionForm['vars']['scheme'] = response.responseData.scheme;
+                dataCollectionSectionForm['vars']['navs_chunks'] = response.responseData.navs_chunks;
+                dataCollectionSectionForm['funcs']['processSchemeData']();
+            } else {
+                paginatedPNotify('error', {
+                    text : 'Scheme data not found!'
+                });
+            }
+        } else {
+            paginatedPNotify('error', {
+                text : response.responseMessage
+            });
+        }
+    }, 'json');
+}
+
+dataCollectionSectionForm['funcs']['processSchemeData'] = function() {
+    $("input[type='radio'][name='timeline']")[0].checked = true;
+    var timelineChecked = $("input[type='radio'][name='timeline']:checked");
+    var timelineTimeline = $(timelineChecked).data('value');
+    var timelineLabels = $(timelineChecked).parents('.btn-group').children('label');
+    $(timelineLabels).each(function(index, timelineLabel) {
+        $(timelineLabel).removeClass('focus active disabled');
+        $(timelineLabel).css('cursor', 'pointer');
+
+        if ($(timelineLabel).children('input')[0].id === timelineTimeline) {
+            $(timelineLabel).addClass('focus active disabled');
+            $(timelineLabel).css('cursor', 'default');
+        }
+    });
+
+    $('#{{componentId}}-{{sectionId}}-date_range').parents('.form-group').addClass('d-none');
+    dataCollectionSection['{{componentId}}-{{sectionId}}-date_range']['flatpickr'].clear();
+
+    for (var availableChunk in dataCollectionSectionForm['vars']['navs_chunks']) {
+        if (dataCollectionSectionForm['vars']['navs_chunks'][availableChunk] === false) {
+            $('#' + availableChunk).parents('label').attr('hidden', true);
+        } else {
+            $('#' + availableChunk).parents('label').attr('hidden', false);
+        }
+    }
+
+    dataCollectionSection['{{componentId}}-{{sectionId}}-date_range']['flatpickr'].config.minDate = dataCollectionSectionForm['vars']['scheme']['start_date'];
+    dataCollectionSection['{{componentId}}-{{sectionId}}-date_range']['flatpickr'].config.maxDate = dataCollectionSectionForm['vars']['scheme']['navs_last_updated'];
+
+    dataCollectionSectionForm['funcs']['initNavChart'](true);
+}
+
+dataCollectionSectionForm['funcs']['initPatternChart'] = function() {
+    if (Object.keys(dataCollectionSectionForm['vars']['patternChart']).length === 0) {
+        dataCollectionSectionForm['vars']['patternChart'] = echarts.init(document.getElementById('patternChart'), 'macarons');
+    }
+
+    dataCollectionSectionForm['vars']['patternChartOptions'] = {
+        title: {
+            text: 'Pattern Chart',
+            left: 'left'
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+              type: 'cross'
+            }
+        },
+        legend: {
+            top: 50,
+            center: 'center'
+        },
+        grid: {
+            top: 80,
+        },
+        xAxis: {
+            name: 'PERIOD (DAYS)',
+            nameLocation: 'middle',
+            nameTextStyle: {
+                lineHeight: 50
+            },
+            data: dataCollectionSectionForm['vars']['pattern_index']
+        },
+        yAxis: {
+            name: 'PERCENTAGE',
+            nameRotate: 90,
+            nameLocation: "middle",
+            nameTextStyle: {
+                lineHeight: 60,
+            }
+        },
+        dataZoom: [
+            {
+                type: 'inside'
+            }
+        ],
+        series: [
+            {
+                name: 'PERCENTAGE',
+                type: 'line',
+                data: dataCollectionSectionForm['vars']['pattern']
+            }
+        ]
+    }
+
+    dataCollectionSectionForm['vars']['patternChart'].off('rendered');
+    dataCollectionSectionForm['vars']['patternChart'].on('rendered', function() {
+        if (dataCollectionSectionForm['vars'] &&
+            dataCollectionSectionForm['vars']['patternChart']
+        ) {
+            if ($('#pattern-chart').width() > 0) {
+                dataCollectionSectionForm['vars']['patternChart'].resize({
+                    width : $('#pattern-chart').width(),
+                    height: 400
+                });
+            }
+        }
+
+        $('#pattern-loader').attr('hidden', true);
+        $('#pattern-chart-info').attr('hidden', true);
+        $('#pattern-chart').attr('hidden', false);
+    });
+
+    dataCollectionSectionForm['vars']['patternChart'].setOption(dataCollectionSectionForm['vars']['patternChartOptions']);
+}
+
+dataCollectionSectionForm['funcs']['initNavChart'] = function() {
+    if (Object.keys(dataCollectionSectionForm['vars']['growthChart']).length === 0) {
+        dataCollectionSectionForm['vars']['growthChart'] = echarts.init(document.getElementById('growthChart'), 'macarons');
+    }
+
+    dataCollectionSectionForm['vars']['growthChartOptions'] = {
+        title: {
+            text: 'Percentage for ' + dataCollectionSectionForm['vars']['scheme']['name'],
+            left: 'left'
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+              type: 'cross'
+            }
+        },
+        legend: {
+            top: 50,
+            center: 'center'
+        },
+        grid: {
+            top: 80,
+        },
+        xAxis: {
+            name: 'PERIOD (WEEK)',
+            nameLocation: 'middle',
+            nameTextStyle: {
+                lineHeight: 50
+            },
+            data: []
+        },
+        yAxis: {
+            name: 'NAVS',
+            nameRotate: 90,
+            nameLocation: "middle",
+            nameTextStyle: {
+                lineHeight: 60,
+            }
+        },
+        dataZoom: [
+            {
+                type: 'inside'
+            }
+        ],
+        series: [
+            {
+                name: 'NAV',
+                type: 'line',
+                data: [],
+            }
+        ]
+    }
+
+    dataCollectionSectionForm['vars']['growthChart'].off('rendered');
+    dataCollectionSectionForm['vars']['growthChart'].on('rendered', function() {
+        if (dataCollectionSectionForm['vars'] &&
+            dataCollectionSectionForm['vars']['growthChart']
+        ) {
+            if ($('#timeline-chart').width() > 0) {
+                dataCollectionSectionForm['vars']['growthChart'].resize({
+                    width : $('#timeline-chart').width(),
+                    height: 400
+                });
+            }
+        }
+
+        $('#timeline').attr('hidden', false);
+        $('#timeline-buttons').attr('hidden', false);
+        $('#timeline-loader').attr('hidden', true);
+        $('#timeline-chart').attr('hidden', false);
+        $('#{{componentId}}-{{sectionId}}-current_scheme_details').attr('hidden', false);
+    });
+
+    if (Object.keys(dataCollectionSectionForm['vars']['navs_chunks']).length > 0) {
+        dataCollectionSectionForm['vars']['growthChartOptions']['series'] = [];
+        dataCollectionSectionForm['vars']['timeline'] = 'week';
+
+        $.each(['week', 'month', 'threeMonth', 'sixMonth', 'year', 'threeYear', 'fiveYear', 'tenYear', 'all', 'range'], function(index, time) {
+            if (!dataCollectionSectionForm['vars']['actions'][time]) {
+                dataCollectionSectionForm['vars']['actions'][time] = function() {
+                    dataCollectionSectionForm['vars']['growthChart'].setOption({series: []}, {replaceMerge: ['series']});
+
+                    if (time === 'range') {
+                        dataCollectionSectionForm['vars']['growthChartOptions']['xAxis']['name'] = 'PERIOD RANGE (' + dataCollectionSectionForm['vars']['range'] + ')';
+                    } else {
+                        dataCollectionSectionForm['vars']['growthChartOptions']['xAxis']['name'] = 'PERIOD (' + time.toUpperCase() + ')';
+                    }
+                    dataCollectionSectionForm['vars']['growthChartOptions']['yAxis']['name'] = dataCollectionSectionForm['vars']['dataTypeName'];
+                    dataCollectionSectionForm['vars']['growthChartOptions']['xAxis']['data'] = [];
+
+                    dataCollectionSectionForm['vars'][time + 'Data'] = [];
+                    dataCollectionSectionForm['vars']['growthChartOptions']['series'][0] = { };
+                    dataCollectionSectionForm['vars']['growthChartOptions']['series'][0]['type'] = 'line';
+
+                    var chunks = dataCollectionSectionForm['vars']['navs_chunks'];
+                    for (var date in chunks[time]) {
+                        dataCollectionSectionForm['vars'][time + 'NavData'] = { };
+                        dataCollectionSectionForm['vars'][time + 'NavData']['date'] = date;
+
+                        if (time === 'all') {
+                            if (dataCollectionSectionForm['vars']['dataType'] === 'diff') {
+                                dataCollectionSectionForm['vars'][time + 'NavData'][dataCollectionSectionForm['vars']['dataType']] =
+                                    chunks[time][date]['diff_since_inception'];
+                            } else if (dataCollectionSectionForm['vars']['dataType'] === 'diff_percent') {
+                                dataCollectionSectionForm['vars'][time + 'NavData'][dataCollectionSectionForm['vars']['dataType']] =
+                                    chunks[time][date]['diff_percent_since_inception'];
+                            } else {
+                                dataCollectionSectionForm['vars'][time + 'NavData'][dataCollectionSectionForm['vars']['dataType']] =
+                                    chunks[time][date][dataCollectionSectionForm['vars']['dataType']];
+                            }
+                        } else {
+                            dataCollectionSectionForm['vars'][time + 'NavData'][dataCollectionSectionForm['vars']['dataType']] =
+                                chunks[time][date][dataCollectionSectionForm['vars']['dataType']];
+                        }
+
+                        dataCollectionSectionForm['vars'][time + 'Data'].push(dataCollectionSectionForm['vars'][time + 'NavData']);
+                    }
+
+                    dataCollectionSectionForm['vars']['growthChartOptions']['series'][0]['name'] = dataCollectionSectionForm['vars']['dataTypeName'];
+
+                    dataCollectionSectionForm['vars']['growthChartOptions']['series'][0]['data'] = dataCollectionSectionForm['vars'][time + 'Data'].map(row => row[dataCollectionSectionForm['vars']['dataType']]);
+                    if (dataCollectionSectionForm['vars']['growthChartOptions']['xAxis']['data'].length === 0) {
+                        dataCollectionSectionForm['vars']['growthChartOptions']['xAxis']['data'] = dataCollectionSectionForm['vars'][time + 'Data'].map(row => row.date);
+                    }
+
+                    dataCollectionSectionForm['vars']['growthChart'].setOption(dataCollectionSectionForm['vars']['growthChartOptions']);
+                }
+            }
+        });
+
+        dataCollectionSectionForm['vars']['actions']['week']();
+
+        //Activate Timeline buttons
+        var timelineChecked = $("input[type='radio'][name='timeline']:checked");
+        var timelineTimeline = $(timelineChecked).data('value');
+        var timelineLabels = $(timelineChecked).parents('.btn-group').children('label');
+        $(timelineLabels).each(function(index, timelineLabel) {
+            $(timelineLabel).removeClass('focus active disabled');
+            $(timelineLabel).css('cursor', 'pointer');
+
+            if ($(timelineLabel).children('input')[0].id === timelineTimeline) {
+                $(timelineLabel).addClass('focus active disabled');
+                $(timelineLabel).css('cursor', 'default');
+            }
+        });
+
+        $("input[type='radio'][name='timeline']:checked").parents('.btn-group').children('label').children('input').off();
+        $("input[type='radio'][name='timeline']:checked").parents('.btn-group').children('label').children('input').click(function() {
+            $('#{{componentId}}-{{sectionId}}-date_range').parents('.form-group').addClass('d-none');
+            dataCollectionSectionForm['vars']['rangeActive'] = false;
+            dataCollectionSectionForm['vars']['range'] = null;
+            dataCollectionSection['{{componentId}}-{{sectionId}}-date_range']['flatpickr'].clear();
+
+            timelineChecked = $("input[type='radio'][name='timeline']:checked");
+            timelineTimeline = $(timelineChecked).data('value');
+            timelineLabels = $(timelineChecked).parents('.btn-group').children('label');
+
+            $(timelineLabels).each(function(index, timelineLabel) {
+                $(timelineLabel).removeClass('focus active disabled');
+                $(timelineLabel).css('cursor', 'pointer');
+
+                if ($(timelineLabel).children('input')[0].id === timelineTimeline) {
+                    $(timelineLabel).addClass('focus active disabled');
+                    $(timelineLabel).css('cursor', 'default');
+                }
+            });
+
+            if (timelineTimeline === 'range') {
+                $('#{{componentId}}-{{sectionId}}-date_range').parents('.form-group').removeClass('d-none');
+
+                return;
+            }
+
+            if (timelineTimeline === 'week') {
+                dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+            } else if (timelineTimeline === 'month') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['month'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'threeMonth') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['threeMonth'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'sixMonth') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['sixMonth'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'year') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['year'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'threeYear') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['threeYear'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'fiveYear') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['fiveYear'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'tenYear') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['tenYear'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            } else if (timelineTimeline === 'all') {
+                if (typeof dataCollectionSectionForm['vars']['navs_chunks']['all'] === 'boolean') {
+                    dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+                } else {
+                    dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+                }
+            }
+        });
+
+        //Activate Datatype (nav, diff, percent) buttons
+        // if ($("input[type='radio'][name='datatype']:checked").length > 0) {
+        //     var datatypeChecked = $("input[type='radio'][name='datatype']:checked");
+        //     var datatypeDatatype = $(datatypeChecked).data('value');
+        //     var datatypeLabels = $(datatypeChecked).parents('.btn-group').children('label');
+        //     $(datatypeLabels).each(function(index, datatypeLabel) {
+        //         $(datatypeLabel).removeClass('focus active disabled');
+        //         $(datatypeLabel).css('cursor', 'pointer');
+
+        //         if ($(datatypeLabel).children('input')[0].id === datatypeDatatype) {
+        //             $(datatypeLabel).addClass('focus active disabled');
+        //             $(datatypeLabel).css('cursor', 'default');
+        //         }
+        //     });
+
+        //     $("input[type='radio'][name='datatype']:checked").parents('.btn-group').children('label').children('input').off();
+        //     $("input[type='radio'][name='datatype']:checked").parents('.btn-group').children('label').children('input').click(function() {
+        //         datatypeChecked = $("input[type='radio'][name='datatype']:checked");
+        //         datatypeDatatype = $(datatypeChecked).data('value');
+        //         if (datatypeDatatype === 'nav') {
+        //             dataCollectionSectionForm['vars']['dataTypeName'] = 'NAV';
+        //         } else if (datatypeDatatype === 'diff') {
+        //             dataCollectionSectionForm['vars']['dataTypeName'] = 'DIFF';
+        //         } else if (datatypeDatatype === 'diff_percent') {
+        //             dataCollectionSectionForm['vars']['dataTypeName'] = 'PERCENT';
+        //         }
+        //         datatypeLabels = $(datatypeChecked).parents('.btn-group').children('label');
+
+        //         $(datatypeLabels).each(function(index, datatypeLabel) {
+        //             $(datatypeLabel).removeClass('focus active disabled');
+        //             $(datatypeLabel).css('cursor', 'pointer');
+
+        //             if ($(datatypeLabel).children('input')[0].id === datatypeDatatype) {
+        //                 $(datatypeLabel).addClass('focus active disabled');
+        //                 $(datatypeLabel).css('cursor', 'default');
+        //             }
+        //         });
+
+        //         dataCollectionSectionForm['vars']['dataType'] = datatypeDatatype;
+
+        //         if (dataCollectionSectionForm['vars']['rangeActive'] === true) {
+        //             dataCollectionSectionForm['vars']['actions']['range']();
+
+        //             return;
+        //         }
+
+        //         $($("input[type='radio'][name='timeline']:checked").parents('.btn-group').children('label')).each(function(index, label) {
+        //             if ($(label).hasClass('active')) {
+        //                 timelineTimeline = $(label).children('input').data('value');
+        //             }
+        //         });
+
+        //         if (timelineTimeline === 'week') {
+        //             dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //         } else if (timelineTimeline === 'month') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['month'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'threeMonth') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['threeMonth'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'sixMonth') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['sixMonth'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'year') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['year'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'threeYear') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['threeYear'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'fiveYear') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['fiveYear'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'tenYear') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['tenYear'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'all') {
+        //             if (typeof dataCollectionSectionForm['vars']['navs_chunks']['all'] === 'boolean') {
+        //                 dataCollectionSectionForm['funcs']['getSchemeNavChunks'](timelineTimeline);
+        //             } else {
+        //                 dataCollectionSectionForm['vars']['actions'][timelineTimeline]();
+        //             }
+        //         } else if (timelineTimeline === 'range') {
+        //             return;
+        //         }
+        //     });
+        // }
+    }
+}
+
+dataCollectionSectionForm['funcs']['getSchemeNavChunks'] = function(chunksize, range = null) {
+    var postData = { };
+    postData[$('#security-token').attr('name')] = $('#security-token').val();
+    postData['scheme_id'] = dataCollectionSectionForm['vars']['scheme']['id'];
+    postData['chunk_size'] = chunksize;
+    if (chunksize === 'range' && range) {
+        range = range.split(' to ');
+        postData['range'] = range;
+    }
+
+    $.post('{{links.url("etf/schemes/getSchemeNavChunks")}}', postData, function(response) {
+        if (response.responseCode == 0 && response.responseData.chunks[chunksize]) {
+            if (chunksize === 'all') {
+                dataCollectionSectionForm['vars']['navs_chunks'] = response.responseData.chunks[chunksize];
+            } else {
+                dataCollectionSectionForm['vars']['navs_chunks'][chunksize] = response.responseData.chunks[chunksize];
+            }
+
+            dataCollectionSectionForm['vars']['actions'][chunksize]();
+        } else {
+            paginatedPNotify('error', response.responseMessage);
+        }
+
+        if (response.tokenKey && response.token) {
+            $("#security-token").attr("name", response.tokenKey);
+            $("#security-token").val(response.token);
+        }
+    }, 'json');
+}
+
+dataCollectionSectionForm['funcs']['generatePattern'] = function() {
+    var postData = { };
+    postData[$('#security-token').attr('name')] = $('#security-token').val();
+    postData['source'] = dataCollectionSectionForm['vars']['source'];
+    if (Object.keys(dataCollectionSectionForm['vars']['pattern']).length === 0) {
+        postData['startValue'] = 0;
+    } else {
+        postData['startValue'] = dataCollectionSectionForm['vars']['pattern'][dataCollectionSectionForm['vars']['pattern'].length - 1];
+    }
+    postData['numberOfDays'] = $('#{{componentId}}-{{sectionId}}-' + postData['source'] +  '_number_of_days').val();
+    postData['totalPercent'] = $('#{{componentId}}-{{sectionId}}-' + postData['source'] +  '_total_percent').val();
+
+    $.post('{{links.url("etf/tools/patterns/generatePattern")}}', postData, function(response) {
+        if (response.responseCode == 0 && response.responseData.pattern) {
+            if ($('#{{componentId}}-{{sectionId}}-pattern').val() !== '') {
+                $('#{{componentId}}-{{sectionId}}-pattern')
+                    .val(
+                        $('#{{componentId}}-{{sectionId}}-pattern').val() + ',' + response.responseData.pattern.toString()
+                    );
+            } else {
+                $('#{{componentId}}-{{sectionId}}-pattern').val(response.responseData.pattern.toString());
+            }
+        } else {
+            paginatedPNotify('error', response.responseMessage);
+        }
+
+        if (response.tokenKey && response.token) {
+            $("#security-token").attr("name", response.tokenKey);
+            $("#security-token").val(response.token);
+        }
+    }, 'json');
+}
+</script>
